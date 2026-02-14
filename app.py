@@ -329,6 +329,25 @@ elif page == "Drug Repurposing":
         st.info("Run main.py first to generate similarity matrices.")
 
 
+# ── pre-computed explorer data (cached) ────────────────────────────────
+
+@st.cache_data
+def load_explorer_data():
+    """Load pre-computed protein data for cloud-friendly explorer."""
+    import os
+    needed = [
+        "data/processed/all_protein_metrics.csv",
+        "data/processed/protein_terms.csv.gz",
+        "data/processed/go_terms_info.csv",
+    ]
+    if not all(os.path.exists(f) for f in needed):
+        return None, None, None
+    metrics = pd.read_csv(needed[0])
+    terms = pd.read_csv(needed[1])
+    go_info = pd.read_csv(needed[2])
+    return metrics, terms, go_info
+
+
 # ══════════════════════════════════════════════════════════════════════
 #  PAGE 6 — Protein Explorer
 # ══════════════════════════════════════════════════════════════════════
@@ -340,39 +359,18 @@ elif page == "Protein Explorer":
         "annotation profile before and after harmonization."
     )
 
-    import os
-    raw_data_available = (
-        os.path.exists("data/raw/go-basic.obo")
-        and os.path.exists("data/raw/goa_human_plus.gaf")
-    )
+    explorer_metrics, explorer_terms, go_info = load_explorer_data()
 
-    if not raw_data_available:
-        st.info(
-            "The Protein Explorer requires the full GO and GOA data files "
-            "(~200 MB) which are not included in the cloud deployment. "
-            "Run the app locally to use this feature:\n\n"
-            "```bash\nstreamlit run app.py\n```"
+    if explorer_metrics is None:
+        st.warning(
+            "Pre-computed explorer data not found. "
+            "Run `python precompute_explorer.py` locally first, then push the generated files."
         )
         st.stop()
 
-    if "harmonizer_loaded" not in st.session_state:
-        st.session_state.harmonizer_loaded = False
-
-    if not st.session_state.harmonizer_loaded:
-        if st.button("Load full model (takes ~30 s on first run)"):
-            with st.spinner("Loading Gene Ontology and annotations..."):
-                harmonizer, dag, ann_df = load_harmonizer()
-                st.session_state.harmonizer_loaded = True
-                st.session_state.harmonizer = harmonizer
-                st.session_state.dag = dag
-                st.session_state.ann_df = ann_df
-            st.rerun()
-        st.stop()
-
-    harmonizer = st.session_state.harmonizer
-    ann_df = st.session_state.ann_df
-
-    all_proteins = sorted(ann_df["DB_Object_ID"].unique())
+    # Build GO term lookup
+    go_lookup = go_info.set_index("go_id").to_dict("index")
+    all_proteins = sorted(explorer_metrics["Protein"].unique())
 
     protein_id = st.selectbox(
         "Select or type a protein ID",
@@ -382,28 +380,21 @@ elif page == "Protein Explorer":
     )
 
     if protein_id:
-        raw_terms, harm_terms = harmonizer.harmonize_protein(protein_id)
-        ic_raw = harmonizer.evaluate_informativeness(raw_terms)
-        ic_harm = harmonizer.evaluate_informativeness(harm_terms)
-        ns_ic_raw, ns_count_raw = harmonizer.evaluate_by_namespace(raw_terms)
-        ns_ic_harm, ns_count_harm = harmonizer.evaluate_by_namespace(harm_terms)
-
-        improvement = ((ic_harm - ic_raw) / ic_raw * 100) if ic_raw > 0 else 0
+        row = explorer_metrics[explorer_metrics["Protein"] == protein_id].iloc[0]
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Raw terms", len(raw_terms))
-        c2.metric("Harmonised terms", len(harm_terms))
-        c3.metric("IC (raw)", f"{ic_raw:.2f}")
-        c4.metric("IC improvement", f"{improvement:.1f}%")
+        c1.metric("Raw terms", int(row["Raw_Count"]))
+        c2.metric("Harmonised terms", int(row["Harmonized_Count"]))
+        c3.metric("IC (raw)", f"{row['IC_Raw']:.2f}")
+        c4.metric("IC improvement", f"{row['Improvement_Pct']:.1f}%")
 
-        # namespace breakdown chart
         ns_data = pd.DataFrame({
             "Namespace": ["BP", "MF", "CC"] * 2,
             "Stage": ["Before"] * 3 + ["After"] * 3,
-            "Terms": [ns_count_raw["BP"], ns_count_raw["MF"], ns_count_raw["CC"],
-                      ns_count_harm["BP"], ns_count_harm["MF"], ns_count_harm["CC"]],
-            "IC": [ns_ic_raw["BP"], ns_ic_raw["MF"], ns_ic_raw["CC"],
-                   ns_ic_harm["BP"], ns_ic_harm["MF"], ns_ic_harm["CC"]],
+            "Terms": [row["BP_Raw"], row["MF_Raw"], row["CC_Raw"],
+                      row["BP_Harmonized"], row["MF_Harmonized"], row["CC_Harmonized"]],
+            "IC": [row["IC_BP_Raw"], row["IC_MF_Raw"], row["IC_CC_Raw"],
+                   row["IC_BP_Harmonized"], row["IC_MF_Harmonized"], row["IC_CC_Harmonized"]],
         })
 
         col_l, col_r = st.columns(2)
@@ -418,21 +409,26 @@ elif page == "Protein Explorer":
                          title="IC by sub-ontology")
             st.plotly_chart(fig, use_container_width=True)
 
-        # term tables
-        propagated_only = harm_terms - raw_terms
-        dag = st.session_state.dag
+        # Term tables from pre-computed data
+        prot_terms = explorer_terms[explorer_terms["protein"] == protein_id]
 
-        def term_table(terms):
+        def build_term_table(term_df):
             rows = []
-            for t in sorted(terms):
-                name = dag[t].name if t in dag else ""
-                ns = harmonizer.get_term_namespace(t)
-                ic = harmonizer.get_information_content(t)
-                rows.append({"GO ID": t, "Name": name, "Namespace": ns, "IC": round(ic, 3)})
-            return pd.DataFrame(rows)
+            for _, t in term_df.iterrows():
+                info = go_lookup.get(t["go_id"], {})
+                rows.append({
+                    "GO ID": t["go_id"],
+                    "Name": info.get("name", ""),
+                    "Namespace": info.get("namespace", ""),
+                    "IC": info.get("ic", 0.0),
+                })
+            return pd.DataFrame(rows).sort_values("IC", ascending=False)
+
+        original = prot_terms[prot_terms["is_original"]]
+        propagated = prot_terms[~prot_terms["is_original"]]
 
         tab1, tab2 = st.tabs(["Original annotations", "Propagated (new) annotations"])
         with tab1:
-            st.dataframe(term_table(raw_terms), use_container_width=True, hide_index=True)
+            st.dataframe(build_term_table(original), use_container_width=True, hide_index=True)
         with tab2:
-            st.dataframe(term_table(propagated_only), use_container_width=True, hide_index=True)
+            st.dataframe(build_term_table(propagated), use_container_width=True, hide_index=True)
