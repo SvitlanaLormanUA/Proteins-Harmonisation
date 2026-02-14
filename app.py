@@ -14,13 +14,15 @@ st.set_page_config(
 
 @st.cache_data
 def load_results():
-    results = pd.read_csv("data/processed/harmonization_results.csv")
-    stats = pd.read_csv("data/processed/statistics_summary.csv")
-    evidence = pd.read_csv("data/processed/evidence_breakdown.csv")
+    from pathlib import Path
+    base = Path(__file__).resolve().parent / "data" / "processed"
+    results = pd.read_csv(base / "harmonization_results.csv")
+    stats = pd.read_csv(base / "statistics_summary.csv")
+    evidence = pd.read_csv(base / "evidence_breakdown.csv")
     try:
-        sim_raw = pd.read_csv("data/processed/similarity_raw.csv", index_col=0)
-        sim_harm = pd.read_csv("data/processed/similarity_harmonized.csv", index_col=0)
-        case_study = pd.read_csv("data/processed/drug_repurposing_case_study.csv")
+        sim_raw = pd.read_csv(base / "similarity_raw.csv", index_col=0)
+        sim_harm = pd.read_csv(base / "similarity_harmonized.csv", index_col=0)
+        case_study = pd.read_csv(base / "drug_repurposing_case_study.csv")
     except FileNotFoundError:
         sim_raw = sim_harm = case_study = None
     return results, stats, evidence, sim_raw, sim_harm, case_study
@@ -45,13 +47,14 @@ def load_harmonizer():
 @st.cache_data
 def load_explorer_data():
     """Load pre-computed protein data for cloud-friendly explorer."""
-    import os
+    from pathlib import Path
+    base = Path(__file__).resolve().parent
     needed = [
-        "data/processed/all_protein_metrics.csv",
-        "data/processed/protein_terms.csv.gz",
-        "data/processed/go_terms_info.csv",
+        base / "data/processed/all_protein_metrics.csv",
+        base / "data/processed/protein_terms.csv.gz",
+        base / "data/processed/go_terms_info.csv",
     ]
-    if not all(os.path.exists(f) for f in needed):
+    if not all(f.exists() for f in needed):
         return None, None, None
     metrics = pd.read_csv(needed[0])
     terms = pd.read_csv(needed[1])
