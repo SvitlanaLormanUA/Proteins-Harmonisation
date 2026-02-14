@@ -32,6 +32,9 @@ class ResultsDB:
             """)
 
     def save_results(self, df: pd.DataFrame, sample_size: int) -> int:
+        # Support both old column name (Improvement) and new (Improvement_Pct)
+        imp_col = 'Improvement_Pct' if 'Improvement_Pct' in df.columns else 'Improvement'
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "INSERT INTO experiments (run_date, sample_size) VALUES (?, ?)",
@@ -52,7 +55,7 @@ class ResultsDB:
                         int(row["Harmonized_Count"]),
                         float(row["IC_Raw"]),
                         float(row["IC_Harmonized"]),
-                        float(row["Improvement"]),
+                        float(row[imp_col]),
                     ),
                 )
         return experiment_id
