@@ -1,0 +1,9 @@
+metric,value
+mean_ic_raw,42.0658382
+mean_ic_harmonized,135.0705134
+mean_improvement_pct,320.83865000000003
+median_improvement_pct,206.65
+wilcoxon_statistic,0.0
+wilcoxon_p_value,2.469193611021719e-165
+sample_size,1000
+significant_p001,True

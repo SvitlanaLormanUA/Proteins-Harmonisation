@@ -340,6 +340,21 @@ elif page == "Protein Explorer":
         "annotation profile before and after harmonization."
     )
 
+    import os
+    raw_data_available = (
+        os.path.exists("data/raw/go-basic.obo")
+        and os.path.exists("data/raw/goa_human_plus.gaf")
+    )
+
+    if not raw_data_available:
+        st.info(
+            "The Protein Explorer requires the full GO and GOA data files "
+            "(~200 MB) which are not included in the cloud deployment. "
+            "Run the app locally to use this feature:\n\n"
+            "```bash\nstreamlit run app.py\n```"
+        )
+        st.stop()
+
     if "harmonizer_loaded" not in st.session_state:
         st.session_state.harmonizer_loaded = False
 

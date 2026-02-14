@@ -19,6 +19,7 @@ packaging==26.0
 pandas==3.0.0
 patsy==1.0.2
 pillow==12.1.0
+plotly==6.5.2
 pydot==4.0.1
 Pygments==2.19.2
 pyparsing==3.3.2
@@ -29,5 +30,6 @@ scipy==1.17.0
 setuptools==80.10.2
 six==1.17.0
 statsmodels==0.14.6
+streamlit==1.54.0
 urllib3==2.6.3
 xlsxwriter==3.2.9

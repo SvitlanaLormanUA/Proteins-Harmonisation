@@ -6,8 +6,10 @@ __pycache__/
 *.py[cod]
 
 data/raw/*
-data/processed/*
 !data/raw/.gitkeep
+
+data/processed/results.db
+
 !data/processed/.gitkeep
 .DS_Store
 
