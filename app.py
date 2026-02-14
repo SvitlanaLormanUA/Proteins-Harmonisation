@@ -42,6 +42,23 @@ def load_harmonizer():
     return harmonizer, dag, df
 
 
+@st.cache_data
+def load_explorer_data():
+    """Load pre-computed protein data for cloud-friendly explorer."""
+    import os
+    needed = [
+        "data/processed/all_protein_metrics.csv",
+        "data/processed/protein_terms.csv.gz",
+        "data/processed/go_terms_info.csv",
+    ]
+    if not all(os.path.exists(f) for f in needed):
+        return None, None, None
+    metrics = pd.read_csv(needed[0])
+    terms = pd.read_csv(needed[1])
+    go_info = pd.read_csv(needed[2])
+    return metrics, terms, go_info
+
+
 results, stats, evidence, sim_raw, sim_harm, case_study = load_results()
 
 # ── sidebar ────────────────────────────────────────────────────────────
@@ -327,25 +344,6 @@ elif page == "Drug Repurposing":
             c2.metric("Mean pairwise similarity (harmonised)", f"{np.mean(harm_vals):.4f}")
     else:
         st.info("Run main.py first to generate similarity matrices.")
-
-
-# ── pre-computed explorer data (cached) ────────────────────────────────
-
-@st.cache_data
-def load_explorer_data():
-    """Load pre-computed protein data for cloud-friendly explorer."""
-    import os
-    needed = [
-        "data/processed/all_protein_metrics.csv",
-        "data/processed/protein_terms.csv.gz",
-        "data/processed/go_terms_info.csv",
-    ]
-    if not all(os.path.exists(f) for f in needed):
-        return None, None, None
-    metrics = pd.read_csv(needed[0])
-    terms = pd.read_csv(needed[1])
-    go_info = pd.read_csv(needed[2])
-    return metrics, terms, go_info
 
 
 # ══════════════════════════════════════════════════════════════════════
