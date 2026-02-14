@@ -16,7 +16,6 @@ from src.harmonizer import GOHarmonizer
 
 
 def main():
-    # 1. Load data
     print("Loading data...")
     loader = BioDataLoader(
         obo_path="data/raw/go-basic.obo",
@@ -25,10 +24,9 @@ def main():
     dag = loader.load_ontology()
     loader.load_annotations()
     df = loader.get_df()
-
     harmonizer = GOHarmonizer(dag, df)
 
-    # 2. GO terms info table (go_id → name, namespace, IC)
+    # 1. GO terms info table
     print("Building GO terms info table...")
     term_rows = []
     for go_id in harmonizer.term_counts:
@@ -39,10 +37,14 @@ def main():
     pd.DataFrame(term_rows).to_csv("data/processed/go_terms_info.csv", index=False)
     print(f"  Saved go_terms_info.csv ({len(term_rows)} terms)")
 
-    # 3. Harmonize ALL proteins
-    unique_proteins = df["DB_Object_ID"].unique()
-    print(f"Harmonizing all {len(unique_proteins)} proteins...")
+    # 2. Pre-build protein → terms mapping (fast, using groupby)
+    print("Building protein-terms mapping...")
+    protein_terms_map = df.groupby("DB_Object_ID")["GO_ID"].apply(set).to_dict()
+    unique_proteins = list(protein_terms_map.keys())
+    print(f"  {len(unique_proteins)} proteins")
 
+    # 3. Harmonize all proteins
+    print("Harmonizing all proteins...")
     metrics_rows = []
     terms_rows = []
 
@@ -50,7 +52,14 @@ def main():
         if (i + 1) % 5000 == 0:
             print(f"  {i + 1}/{len(unique_proteins)}...")
 
-        raw, harmonized = harmonizer.harmonize_protein(prot)
+        raw = protein_terms_map[prot]
+
+        # True Path Rule: add all ancestors
+        harmonized = set(raw)
+        for go_id in raw:
+            if go_id in dag:
+                harmonized.update(dag[go_id].get_all_parents())
+
         ic_raw = harmonizer.evaluate_informativeness(raw)
         ic_harm = harmonizer.evaluate_informativeness(harmonized)
         ns_ic_raw, ns_count_raw = harmonizer.evaluate_by_namespace(raw)
@@ -75,7 +84,6 @@ def main():
             "IC_CC_Harmonized": round(ns_ic_harm["CC"], 4),
         })
 
-        # Store term-level data
         for t in raw:
             terms_rows.append({"protein": prot, "go_id": t, "is_original": True})
         for t in harmonized - raw:
