@@ -1,6 +1,7 @@
 # Proteins-Harmonisation
 
 **Deployed:** https://proteins-harmonisation.streamlit.app/
+<br>
 **Thesis:** https://docs.google.com/document/d/1coxj2yBy735PjSaxKnyv0Qn5KIKvFnbqWVlNH9HAac4/edit?usp=sharing
 
 Code for a thesis evaluating methods to harmonize predicted protein annotations within the Gene Ontology (GO) DAG hierarchy. By enforcing hierarchical consistency, this model improves the informativeness and accuracy of computational drug repurposing pipelines. Includes data preprocessing, GO-term harmonization, and drug-target interaction analysis.
